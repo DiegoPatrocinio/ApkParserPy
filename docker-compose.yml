@@ -1,0 +1,49 @@
+mysql:
+  restart: always
+  environment:
+    MYSQL_ROOT_PASSWORD: mysql
+    MYSQL_DATABASE: mysql
+    MYSQL_USER: mysql
+    MYSQL_PASSWORD: mysql
+  image: mysql:latest
+  command: mysqld --default-authentication-plugin=mysql_native_password
+  ports:
+    - "3306:3306"
+  volumes:
+    - mysql-datadir:/var/lib/mysql
+
+web:
+  restart: always
+  build: ./web/
+  expose:
+    - "8000"
+  links:
+    - mysql:mysql
+  volumes:
+    - /usr/src/app
+    - /usr/src/app/static
+  env_file: .env
+  environment:
+    DEBUG: 'true'
+  command: python manage.py makemigrations backoffice
+  command: python manage.py migrate --noinput
+  command: python manage.py collectstatic --noinput
+  command: gunicorn --timeout 3000 backoffice.wsgi:application -w 2 -b :8000
+
+nginx:
+  restart: always
+  build: ./nginx/
+  ports:
+    - 0.0.0.0:80:80
+    - 0.0.0.0:443:443
+  environment:
+    DOMAINS: dbmpr.info
+  volumes:
+    - /www/static
+    - nginx-certs:/etc/nginx/certs:ro
+    - letsencrypt_certs:/etc/letsencrypt
+    - letsencrypt_www:/var/www/letsencrypt
+  volumes_from:
+    - web
+  links:
+    - web:web
